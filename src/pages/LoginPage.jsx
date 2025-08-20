@@ -125,7 +125,7 @@ function LoginPage() {
           </form>
 
           {/* Demo Credentials */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
+         { /*<div className="mt-8 pt-6 border-t border-gray-200">
             <h3 className="text-sm font-medium text-gray-900 mb-4">Demo Credentials:</h3>
             <div className="space-y-2">
               {demoCredentials.map((cred, index) => (
@@ -138,7 +138,7 @@ function LoginPage() {
                 </button>
               ))}
             </div>
-          </div>
+          </div>*/}
         </div>
       </div>
     </div>
