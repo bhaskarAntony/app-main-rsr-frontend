@@ -9,6 +9,7 @@ import TravelAdminDashboard from './pages/TravelAdminDashboard';
 import DriverDashboard from './pages/DriverDashboard';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import LoadingScreen from './components/LoadingScreen';
+import LocationGate from './LocationGate';
 
 function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
@@ -39,7 +40,9 @@ function AppRoutes() {
         path="/admin" 
         element={
           <ProtectedRoute allowedRoles={['company-admin']}>
-            <CompanyAdminDashboard />
+          <LocationGate>
+              <CompanyAdminDashboard />
+          </LocationGate>
           </ProtectedRoute>
         } 
       />
@@ -48,7 +51,9 @@ function AppRoutes() {
         path="/travel-admin" 
         element={
           <ProtectedRoute allowedRoles={['travel-admin']}>
-            <TravelAdminDashboard />
+           <LocationGate>
+             <TravelAdminDashboard />
+           </LocationGate>
           </ProtectedRoute>
         } 
       />
@@ -57,7 +62,9 @@ function AppRoutes() {
         path="/driver" 
         element={
           <ProtectedRoute allowedRoles={['driver']}>
-            <DriverDashboard />
+           <LocationGate>
+             <DriverDashboard />
+           </LocationGate>
           </ProtectedRoute>
         } 
       />
@@ -66,7 +73,9 @@ function AppRoutes() {
         path="/employee" 
         element={
           <ProtectedRoute allowedRoles={['employee']}>
-            <EmployeeDashboard />
+           <LocationGate>
+             <EmployeeDashboard />
+           </LocationGate>
           </ProtectedRoute>
         } 
       />
