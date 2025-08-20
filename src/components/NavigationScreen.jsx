@@ -35,6 +35,8 @@ function NavigationScreen({
   const [speed, setSpeed] = useState(0);
   const [spokenSteps, setSpokenSteps] = useState(new Set());
   const [maneuver, setManeuver] = useState(null);
+  const [speedLimit, setSpeedLimit] = useState(null);
+  const [snappedLocation, setSnappedLocation] = useState(null);
 
   useEffect(() => {
     initializeMap();
@@ -54,7 +56,7 @@ function NavigationScreen({
       recenterMap();
       updateCurrentStep();
     }
-  }, [map, trip, currentLocation]);
+  }, [map, trip, currentLocation, snappedLocation]);
 
   useEffect(() => {
     if (navigationSteps.length > 0 && currentStepIndex < navigationSteps.length) {
@@ -68,6 +70,33 @@ function NavigationScreen({
       }
     }
   }, [currentStepIndex, navigationSteps]);
+
+  useEffect(() => {
+    if (!currentLocation) return;
+
+    const fetchRoadsData = async () => {
+      try {
+        const path = `${currentLocation.lat},${currentLocation.lng}`;
+        const response = await fetch(
+          `https://roads.googleapis.com/v1/speedLimits?path=${path}&key=${GOOGLE_MAPS_API_KEY}&units=KPH`
+        );
+        const data = await response.json();
+
+        if (data.speedLimits && data.speedLimits[0]) {
+          setSpeedLimit(data.speedLimits[0].speedLimit);
+        }
+
+        if (data.snappedPoints && data.snappedPoints[0]) {
+          const snapped = data.snappedPoints[0].location;
+          setSnappedLocation({ lat: snapped.latitude, lng: snapped.longitude });
+        }
+      } catch (error) {
+        console.error('Error fetching Roads API data:', error);
+      }
+    };
+
+    fetchRoadsData();
+  }, [currentLocation]);
 
   const startLocationWatching = () => {
     if (navigator.geolocation) {
@@ -157,11 +186,12 @@ function NavigationScreen({
   };
 
   const updateLocationName = async () => {
-    if (!currentLocation) return;
+    const loc = snappedLocation || currentLocation;
+    if (!loc) return;
     
     try {
       const geocoder = new google.maps.Geocoder();
-      const result = await geocoder.geocode({ location: currentLocation });
+      const result = await geocoder.geocode({ location: loc });
       if (result.results[0]) {
         setCurrentLocationName(result.results[0].formatted_address);
       }
@@ -176,8 +206,10 @@ function NavigationScreen({
     markers.forEach(marker => marker.setMap(null));
     const newMarkers = [];
 
+    const effectiveLocation = snappedLocation || currentLocation;
+
     const driverMarker = new google.maps.Marker({
-      position: currentLocation,
+      position: effectiveLocation,
       map: map,
       title: 'Your Location',
       icon: {
@@ -217,6 +249,8 @@ function NavigationScreen({
   const calculateRoute = () => {
     if (!directionsService || !directionsRenderer || !trip || !currentLocation) return;
 
+    const effectiveOrigin = snappedLocation || currentLocation;
+
     let waypoints = [];
     
     trip.employees.forEach(emp => {
@@ -242,7 +276,7 @@ function NavigationScreen({
     }
 
     const request = {
-      origin: currentLocation,
+      origin: effectiveOrigin,
       destination: waypoints[waypoints.length - 1].location,
       waypoints: waypoints.slice(0, -1),
       travelMode: google.maps.TravelMode.DRIVING,
@@ -363,12 +397,14 @@ function NavigationScreen({
   const updateCurrentStep = () => {
     if (!navigationSteps.length || !currentLocation) return;
 
+    const effectiveLocation = snappedLocation || currentLocation;
+
     let minDistance = Infinity;
     let closestIndex = 0;
 
     navigationSteps.forEach((step, index) => {
       const isOnPath = google.maps.geometry.poly.isLocationOnEdge(
-        new google.maps.LatLng(currentLocation.lat, currentLocation.lng),
+        new google.maps.LatLng(effectiveLocation.lat, effectiveLocation.lng),
         new google.maps.Polyline({ path: step.path }),
         0.0001
       );
@@ -379,7 +415,7 @@ function NavigationScreen({
       }
 
       const distToEnd = google.maps.geometry.spherical.computeDistanceBetween(
-        new google.maps.LatLng(currentLocation.lat, currentLocation.lng),
+        new google.maps.LatLng(effectiveLocation.lat, effectiveLocation.lng),
         step.end_location
       );
 
@@ -400,7 +436,8 @@ function NavigationScreen({
 
   const recenterMap = () => {
     if (map && currentLocation) {
-      map.setCenter(currentLocation);
+      const effectiveLocation = snappedLocation || currentLocation;
+      map.setCenter(effectiveLocation);
       map.setZoom(17);
       map.setTilt(60);
       map.setHeading(heading);
@@ -477,7 +514,7 @@ function NavigationScreen({
         <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-2 border flex items-center space-x-2">
           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
           <div>
-            <p className="text-xs font-medium">Speed: {Math.round(speed)} km/h</p>
+            <p className="text-xs font-medium">Speed: {Math.round(speed)} km/h (Limit: {speedLimit || 'N/A'} km/h)</p>
             <p className="text-xs text-gray-600 truncate max-w-xs">{currentLocationName}</p>
           </div>
         </div>
