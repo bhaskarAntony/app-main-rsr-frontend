@@ -52,7 +52,7 @@ function LoginPage() {
             <Car className="w-12 h-12 text-blue-600" />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            CabManager
+            RSR Tours
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             Company Cab Management System
