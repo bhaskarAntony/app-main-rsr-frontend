@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Loader } from '@googlemaps/js-api-loader';
 import { X, Phone, MessageCircle, Navigation, MapPin, Clock, User, Car, Route as RouteIcon, RotateCcw } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyAlwkR078ja6eYka4GoD98JPkQoCf4jiaE';
 
 function NavigationScreen({ 
-  trip, 
+  trip,
+  trips = [],
   currentLocation, 
   onClose, 
   userRole = 'driver',
@@ -14,6 +16,7 @@ function NavigationScreen({
   onCompleteTrip
 }) {
   const mapRef = useRef(null);
+  const driverMarkerRef = useRef(null);
   const [map, setMap] = useState(null);
   const [directionsService, setDirectionsService] = useState(null);
   const [directionsRenderer, setDirectionsRenderer] = useState(null);
@@ -37,6 +40,7 @@ function NavigationScreen({
   const [maneuver, setManeuver] = useState(null);
   const [speedLimit, setSpeedLimit] = useState(null);
   const [snappedLocation, setSnappedLocation] = useState(null);
+  const [prevLocation, setPrevLocation] = useState(null);
 
   useEffect(() => {
     initializeMap();
@@ -50,13 +54,19 @@ function NavigationScreen({
   }, []);
 
   useEffect(() => {
-    if (map && trip && currentLocation) {
+    if (map && heading) {
+      map.setHeading(heading);
+    }
+  }, [map, heading]);
+
+  useEffect(() => {
+    if (map && (trip || trips) && (currentLocation || userRole === 'admin')) {
       updateMapWithTrip();
       updateLocationName();
       recenterMap();
       updateCurrentStep();
     }
-  }, [map, trip, currentLocation, snappedLocation]);
+  }, [map, trip, trips, currentLocation, snappedLocation, userRole]);
 
   useEffect(() => {
     if (navigationSteps.length > 0 && currentStepIndex < navigationSteps.length) {
@@ -72,7 +82,7 @@ function NavigationScreen({
   }, [currentStepIndex, navigationSteps]);
 
   useEffect(() => {
-    if (!currentLocation) return;
+    if (!currentLocation || userRole === 'admin') return;
 
     const fetchRoadsData = async () => {
       try {
@@ -96,15 +106,14 @@ function NavigationScreen({
     };
 
     fetchRoadsData();
-  }, [currentLocation]);
+  }, [currentLocation, userRole]);
 
   const startLocationWatching = () => {
-    if (navigator.geolocation) {
+    if (navigator.geolocation && userRole !== 'admin') {
       const id = navigator.geolocation.watchPosition(
         (position) => {
           setHeading(position.coords.heading || 0);
           setSpeed((position.coords.speed || 0) * 3.6); // m/s to km/h
-          // Assuming currentLocation prop is updated externally
         },
         (error) => console.error('Geolocation error:', error),
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
@@ -124,9 +133,9 @@ function NavigationScreen({
       await loader.load();
       
       const mapInstance = new google.maps.Map(mapRef.current, {
-        center: currentLocation || { lat: 12.9716, lng: 77.5946 },
-        zoom: 17,
-        tilt: 60,
+        center: { lat: 12.9716, lng: 77.5946 },
+        zoom: userRole === 'admin' ? 5 : 17,
+        tilt: userRole === 'admin' ? 0 : 60,
         heading: heading,
         styles: [
           {
@@ -174,7 +183,7 @@ function NavigationScreen({
       setDirectionsService(directionsServiceInstance);
       setDirectionsRenderer(directionsRendererInstance);
 
-      // Add transit and bicycle layers
+      // Add transit and bicycle layers for enhanced navigation
       const bikeLayer = new google.maps.BicyclingLayer();
       bikeLayer.setMap(mapInstance);
       const transitLayer = new google.maps.TransitLayer();
@@ -187,7 +196,7 @@ function NavigationScreen({
 
   const updateLocationName = async () => {
     const loc = snappedLocation || currentLocation;
-    if (!loc) return;
+    if (!loc || userRole === 'admin') return;
     
     try {
       const geocoder = new google.maps.Geocoder();
@@ -200,34 +209,122 @@ function NavigationScreen({
     }
   };
 
-  const updateMapWithTrip = () => {
-    if (!map || !trip || !currentLocation) return;
+  const animateMarker = (marker, startPos, endPos) => {
+    const duration = 1000; // ms
+    const startTime = performance.now();
 
-    markers.forEach(marker => marker.setMap(null));
+    const animate = (time) => {
+      let progress = (time - startTime) / duration;
+      if (progress > 1) progress = 1;
+
+      const lat = startPos.lat + (endPos.lat - startPos.lat) * progress;
+      const lng = startPos.lng + (endPos.lng - startPos.lng) * progress;
+
+      marker.setPosition({ lat, lng });
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  };
+
+  const updateMapWithTrip = () => {
+    if (!map) return;
+
+    // Clear existing markers except driver marker
+    markers.forEach(marker => {
+      if (marker !== driverMarkerRef.current) marker.setMap(null);
+    });
     const newMarkers = [];
+
+    if (userRole === 'admin') {
+      // Admin view: live tracking of all trips
+      trips.forEach((adminTrip, index) => {
+        if (adminTrip.currentLocation) {
+          const adminMarker = new google.maps.Marker({
+            position: adminTrip.currentLocation,
+            map: map,
+            title: `Vehicle: ${adminTrip.vehicleId?.numberPlate || 'Unknown'}`,
+            icon: {
+              url: 'data:image/svg+xml;charset=UTF-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="%232563eb"%3E%3Cpath d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.22.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/%3E%3C/svg%3E',
+              scaledSize: new google.maps.Size(40, 40),
+              anchor: new google.maps.Point(20, 20)
+            },
+            animation: google.maps.Animation.DROP
+          });
+
+          const infoWindow = new google.maps.InfoWindow({
+            content: `
+              <div>
+                <h3>${adminTrip.tripName}</h3>
+                <p>Vehicle: ${adminTrip.vehicleId?.numberPlate}</p>
+                <p>Driver: ${adminTrip.driverId?.name}</p>
+                <p>Employees: ${adminTrip.employees.length}</p>
+              </div>
+            `
+          });
+
+          adminMarker.addListener('click', () => {
+            infoWindow.open(map, adminMarker);
+          });
+
+          newMarkers.push(adminMarker);
+        }
+      });
+      setMarkers(newMarkers);
+      return; // No route calculation for admin
+    }
 
     const effectiveLocation = snappedLocation || currentLocation;
 
-    const driverMarker = new google.maps.Marker({
-      position: effectiveLocation,
-      map: map,
-      title: 'Your Location',
-      icon: {
+    // Update driver marker position smoothly
+    if (!driverMarkerRef.current) {
+      driverMarkerRef.current = new google.maps.Marker({
+        position: effectiveLocation,
+        map: map,
+        title: 'Your Location',
+        icon: {
+          path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+          scale: 6,
+          fillColor: '#1A73E8',
+          fillOpacity: 1,
+          strokeWeight: 2,
+          rotation: heading
+        },
+        zIndex: 1000
+      });
+      newMarkers.push(driverMarkerRef.current);
+    } else {
+      if (prevLocation) {
+        animateMarker(driverMarkerRef.current, prevLocation, effectiveLocation);
+      } else {
+        driverMarkerRef.current.setPosition(effectiveLocation);
+      }
+      driverMarkerRef.current.setIcon({
         path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
         scale: 6,
         fillColor: '#1A73E8',
         fillOpacity: 1,
         strokeWeight: 2,
         rotation: heading
-      },
-      zIndex: 1000
-    });
-    newMarkers.push(driverMarker);
+      });
+    }
+
+    setPrevLocation(effectiveLocation);
 
     let destination;
-    if (trip.employees.length > 0) {
-      const lastEmp = trip.employees[trip.employees.length - 1];
-      destination = lastEmp.status === 'Picked' ? lastEmp.dropLocation : lastEmp.pickupLocation;
+    if (trip?.employees?.length > 0) {
+      const emp = trip.employees[0]; // Assume first employee for simplicity; adjust if multiple
+      if (userRole === 'employee') {
+        // For employee, destination is pickup or drop based on status
+        destination = emp.status === 'Pending' ? emp.pickupLocation : emp.dropLocation;
+      } else {
+        // For driver, last destination
+        const lastEmp = trip.employees[trip.employees.length - 1];
+        destination = lastEmp.status === 'Picked' ? lastEmp.dropLocation : lastEmp.pickupLocation;
+      }
       if (destination) {
         const destMarker = new google.maps.Marker({
           position: destination,
@@ -236,49 +333,94 @@ function NavigationScreen({
             url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
             scaledSize: new google.maps.Size(40, 40)
           },
-          zIndex: 500
+          zIndex: 500,
+          animation: google.maps.Animation.DROP
         });
         newMarkers.push(destMarker);
       }
     }
 
-    setMarkers(newMarkers);
+    // Add intermediate markers for driver with color based on status
+    if (userRole === 'driver') {
+      trip.employees.forEach((emp) => {
+        if (emp.pickupLocation) {
+          const isCompleted = emp.status === 'Picked' || emp.status === 'Dropped';
+          const pickupMarker = new google.maps.Marker({
+            position: emp.pickupLocation,
+            map: map,
+            title: `Pickup: ${emp.employeeId?.name}`,
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="${isCompleted ? '%2310b981' : '%23f59e0b'}"%3E%3Cpath d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/%3E%3C/svg%3E`,
+              scaledSize: new google.maps.Size(32, 32),
+              anchor: new google.maps.Point(16, 32)
+            },
+            animation: google.maps.Animation.DROP
+          });
+          newMarkers.push(pickupMarker);
+        }
+        if (emp.dropLocation) {
+          const isCompleted = emp.status === 'Dropped';
+          const dropMarker = new google.maps.Marker({
+            position: emp.dropLocation,
+            map: map,
+            title: `Drop: ${emp.employeeId?.name}`,
+            icon: {
+              url: `data:image/svg+xml;charset=UTF-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="${isCompleted ? '%2310b981' : '%23ef4444'}"%3E%3Cpath d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/%3E%3C/svg%3E`,
+              scaledSize: new google.maps.Size(32, 32),
+              anchor: new google.maps.Point(16, 32)
+            },
+            animation: google.maps.Animation.DROP
+          });
+          newMarkers.push(dropMarker);
+        }
+      });
+    }
+
+    setMarkers([...newMarkers, driverMarkerRef.current]);
     calculateRoute();
   };
 
   const calculateRoute = () => {
-    if (!directionsService || !directionsRenderer || !trip || !currentLocation) return;
+    if (!directionsService || !directionsRenderer || userRole === 'admin') return;
 
     const effectiveOrigin = snappedLocation || currentLocation;
 
     let waypoints = [];
-    
-    trip.employees.forEach(emp => {
-      if (emp.status === 'Pending' && emp.pickupLocation) {
-        waypoints.push({
-          location: new google.maps.LatLng(emp.pickupLocation.lat, emp.pickupLocation.lng),
-          stopover: true
-        });
-      }
-    });
+    let destinationLocation;
 
-    trip.employees.forEach(emp => {
-      if (emp.status === 'Picked' && emp.dropLocation) {
-        waypoints.push({
-          location: new google.maps.LatLng(emp.dropLocation.lat, emp.dropLocation.lng),
-          stopover: true
-        });
-      }
-    });
+    if (userRole === 'employee') {
+      // Employee view: simple route from driver to employee's pickup/drop
+      const emp = trip.employees[0]; // Assume single employee
+      destinationLocation = emp.status === 'Pending' ? emp.pickupLocation : emp.dropLocation;
+      // No waypoints
+    } else {
+      // Driver view: full route with waypoints
+      trip.employees.forEach(emp => {
+        if (emp.status === 'Pending' && emp.pickupLocation) {
+          waypoints.push({
+            location: new google.maps.LatLng(emp.pickupLocation.lat, emp.pickupLocation.lng),
+            stopover: true
+          });
+        }
+      });
 
-    if (waypoints.length === 0) {
-      return;
+      trip.employees.forEach(emp => {
+        if (emp.status === 'Picked' && emp.dropLocation) {
+          waypoints.push({
+            location: new google.maps.LatLng(emp.dropLocation.lat, emp.dropLocation.lng),
+            stopover: true
+          });
+        }
+      });
+
+      if (waypoints.length === 0) return;
+      destinationLocation = waypoints.pop().location;
     }
 
     const request = {
       origin: effectiveOrigin,
-      destination: waypoints[waypoints.length - 1].location,
-      waypoints: waypoints.slice(0, -1),
+      destination: destinationLocation,
+      waypoints: waypoints,
       travelMode: google.maps.TravelMode.DRIVING,
       optimizeWaypoints: true,
       provideRouteAlternatives: true,
@@ -328,7 +470,7 @@ function NavigationScreen({
           path: step.path,
           end_location: step.end_location,
           distanceValue: distValue,
-          maneuver: step.maneuver // For lane guidance
+          maneuver: step.maneuver
         });
       });
     });
@@ -347,13 +489,12 @@ function NavigationScreen({
   };
 
   const drawProgressPolyline = (route) => {
-    // Clear existing polylines by creating new ones
     let completedPath = [];
     let remainingPath = [];
     let isCompleted = true;
 
     route.legs.forEach(leg => {
-      leg.steps.forEach((step, idx) => {
+      leg.steps.forEach(step => {
         if (isCompleted) {
           if (currentStepIndex > navigationSteps.findIndex(s => s.end_location.lat() === step.end_location.lat() && s.end_location.lng() === step.end_location.lng())) {
             completedPath = [...completedPath, ...step.path];
@@ -395,7 +536,7 @@ function NavigationScreen({
   };
 
   const updateCurrentStep = () => {
-    if (!navigationSteps.length || !currentLocation) return;
+    if (!navigationSteps.length || !currentLocation || userRole === 'admin') return;
 
     const effectiveLocation = snappedLocation || currentLocation;
 
@@ -430,37 +571,45 @@ function NavigationScreen({
 
   const handleSelectRoute = (index) => {
     setSelectedRouteIndex(index);
-    setSpokenSteps(new Set()); // Reset spoken steps for new route
+    setSpokenSteps(new Set());
     displayRoute({ routes: availableRoutes }, index);
   };
 
   const recenterMap = () => {
-    if (map && currentLocation) {
-      const effectiveLocation = snappedLocation || currentLocation;
-      map.setCenter(effectiveLocation);
-      map.setZoom(17);
-      map.setTilt(60);
-      map.setHeading(heading);
+    if (map) {
+      if (userRole === 'admin') {
+        // For admin, fit bounds to all markers
+        if (markers.length > 0) {
+          const bounds = new google.maps.LatLngBounds();
+          markers.forEach(marker => bounds.extend(marker.getPosition()));
+          map.fitBounds(bounds);
+        }
+      } else if (currentLocation) {
+        const effectiveLocation = snappedLocation || currentLocation;
+        map.setCenter(effectiveLocation);
+        map.setZoom(17);
+        map.setTilt(60);
+        map.setHeading(heading);
+      }
     }
   };
 
   const handlePickupEmployee = (employeeId) => {
     if (onPickupEmployee) {
       onPickupEmployee(trip._id, employeeId);
-      calculateRoute(); // Recalculate route after pickup
+      calculateRoute();
     }
   };
 
   const handleDropEmployee = (employeeId) => {
     if (onDropEmployee) {
       onDropEmployee(trip._id, employeeId);
-      calculateRoute(); // Recalculate route after drop
+      calculateRoute();
     }
   };
 
   const nextStep = navigationSteps[currentStepIndex] || {};
 
-  // Map maneuver to icon
   const getManeuverIcon = (maneuver) => {
     if (!maneuver) return <Navigation className="w-8 h-8 flex-shrink-0" />;
     switch (maneuver) {
@@ -480,8 +629,12 @@ function NavigationScreen({
 
   return (
     <div className="fixed inset-0 bg-white z-50 flex flex-col">
-      {/* Navigation Header */}
-      <div className="bg-blue-700 text-white p-3 flex flex-col space-y-2">
+      <motion.div 
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+        className="bg-blue-700 text-white p-3 flex flex-col space-y-2"
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <button onClick={onClose} className="text-white">
@@ -496,33 +649,43 @@ function NavigationScreen({
             <RotateCcw className="w-6 h-6" />
           </button>
         </div>
-        <div className="bg-blue-800 p-3 rounded-lg">
-          <div className="flex items-center space-x-3">
-            {getManeuverIcon(maneuver)}
-            <div>
-              <p className="text-lg font-bold">{nextStep.instruction || 'Proceed to route'}</p>
-              <p className="text-sm">{nextStep.distance} • {nextStep.duration}</p>
+        {userRole !== 'admin' && (
+          <div className="bg-blue-800 p-3 rounded-lg">
+            <div className="flex items-center space-x-3">
+              {getManeuverIcon(maneuver)}
+              <div>
+                <p className="text-lg font-bold">{nextStep.instruction || 'Proceed to route'}</p>
+                <p className="text-sm">{nextStep.distance} • {nextStep.duration}</p>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
+        )}
+      </motion.div>
 
-      {/* Map Container */}
       <div className="flex-1 relative">
         <div ref={mapRef} className="w-full h-full" />
-        {/* Speed and Location Overlay */}
-        <div className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-2 border flex items-center space-x-2">
-          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          <div>
-            <p className="text-xs font-medium">Speed: {Math.round(speed)} km/h (Limit: {speedLimit || 'N/A'} km/h)</p>
-            <p className="text-xs text-gray-600 truncate max-w-xs">{currentLocationName}</p>
-          </div>
-        </div>
+        {userRole !== 'admin' && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="absolute bottom-4 left-4 bg-white rounded-lg shadow-lg p-2 border flex items-center space-x-2"
+          >
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            <div>
+              <p className="text-xs font-medium">Speed: {Math.round(speed)} km/h (Limit: {speedLimit || 'N/A'} km/h)</p>
+              <p className="text-xs text-gray-600 truncate max-w-xs">{currentLocationName}</p>
+            </div>
+          </motion.div>
+        )}
       </div>
 
-      {/* Bottom Panel */}
-      <div className="bg-white border-t p-3 space-y-3">
-        {/* Trip Stats */}
+      <motion.div 
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+        className="bg-white border-t p-3 space-y-3"
+      >
         <div className="flex justify-around text-center text-sm">
           <div>
             <p className="font-bold">{routeInfo.totalDistance.toFixed(1)} km</p>
@@ -542,8 +705,7 @@ function NavigationScreen({
           </div>
         </div>
 
-        {/* Alternative Routes */}
-        {availableRoutes.length > 1 && (
+        {availableRoutes.length > 1 && userRole !== 'admin' && (
           <div className="flex space-x-2 overflow-x-auto">
             {availableRoutes.map((route, index) => {
               const totalTime = route.legs.reduce((sum, leg) => sum + (leg.duration_in_traffic?.value || leg.duration.value), 0) / 60;
@@ -560,11 +722,16 @@ function NavigationScreen({
           </div>
         )}
 
-        {/* Employee Actions */}
-        {userRole === 'driver' && (
+        {userRole === 'driver' && trip && (
           <div className="space-y-2 max-h-24 overflow-y-auto">
             {trip.employees.map((emp, index) => (
-              <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-md border text-sm">
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="flex items-center justify-between p-2 bg-gray-50 rounded-md border text-sm"
+              >
                 <div className="flex items-center space-x-2">
                   <User className="w-4 h-4 text-blue-600" />
                   <div>
@@ -593,13 +760,12 @@ function NavigationScreen({
                     </button>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
           </div>
         )}
 
-        {/* Complete Trip */}
-        {userRole === 'driver' && trip.employees.every(emp => emp.status === 'Dropped') && (
+        {userRole === 'driver' && trip?.employees.every(emp => emp.status === 'Dropped') && (
           <button
             onClick={onCompleteTrip}
             className="w-full bg-green-600 text-white py-2 rounded-md font-medium text-sm"
@@ -608,8 +774,7 @@ function NavigationScreen({
           </button>
         )}
 
-        {/* Employee View */}
-        {userRole === 'employee' && (
+        {userRole === 'employee' && trip && (
           <div className="text-sm">
             <div className="flex items-center justify-between">
               <span className="font-medium">Driver: {trip.driverId?.name}</span>
@@ -623,9 +788,30 @@ function NavigationScreen({
               </div>
             </div>
             <p className="text-gray-600">{trip.vehicleId?.name} • {trip.vehicleId?.numberPlate}</p>
+            <p className="text-gray-600">Status: {trip.employees[0]?.status}</p>
           </div>
         )}
-      </div>
+
+        {userRole === 'admin' && trips && (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {trips.map((adminTrip, index) => (
+              <motion.div 
+                key={index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="p-2 bg-gray-50 rounded-md border text-sm"
+              >
+                <h3 className="font-medium">{adminTrip.tripName}</h3>
+                <p>Vehicle: {adminTrip.vehicleId?.numberPlate}</p>
+                <p>Driver: {adminTrip.driverId?.name}</p>
+                <p>Employees: {adminTrip.employees.length}</p>
+                <p>Status: {adminTrip.status}</p>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </motion.div>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoadingScreen from '../components/LoadingScreen';
 import MobileHeader from '../components/MobileHeader';
 import BottomNavigation from '../components/BottomNavigation';
 import MobileCard from '../components/MobileCard';
@@ -6,6 +7,7 @@ import MobileButton from '../components/MobileButton';
 import NavigationScreen from '../components/NavigationScreen';
 import ChatSystem from '../components/ChatSystem';
 import TripReportGenerator from '../components/TripReportGenerator';
+import Modal from '../components/Modal';
 import { 
   Route, 
   Car, 
@@ -28,6 +30,7 @@ import { socketService } from '../services/socket';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
+
 function DriverDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [trips, setTrips] = useState([]);
@@ -42,6 +45,7 @@ function DriverDashboard() {
   const [selectedTripForChat, setSelectedTripForChat] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedTripForReport, setSelectedTripForReport] = useState(null);
+  const [showLoading, setShowLoading] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -168,6 +172,8 @@ function DriverDashboard() {
 
   const handleStartTrip = async (tripId) => {
     try {
+      setShowLoading(true);
+      
       await api.put(`/trips/${tripId}/start`);
       toast.success('Trip started successfully');
       setLocationTracking(true);
@@ -181,9 +187,11 @@ function DriverDashboard() {
       
       // Auto-navigate to navigation screen
       setTimeout(() => {
+        setShowLoading(false);
         setShowNavigationScreen(true);
-      }, 1000);
+      }, 2000);
     } catch (error) {
+      setShowLoading(false);
       toast.error('Failed to start trip');
     }
   };
@@ -270,6 +278,10 @@ function DriverDashboard() {
     );
   }
 
+  if (showLoading) {
+    return <LoadingScreen message="Starting your trip..." />;
+  }
+
   if (showNavigationScreen && currentTrip) {
     return (
       <NavigationScreen
@@ -310,7 +322,7 @@ function DriverDashboard() {
           <div className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-2 gap-4">
-              <MobileCard className="text-center">
+              <MobileCard className="text-center" hover>
                 <Route className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                 <p className="text-2xl font-bold text-gray-900">{trips.length}</p>
                 <p className="text-sm text-gray-600">Total Trips</p>
@@ -337,7 +349,7 @@ function DriverDashboard() {
 
             {/* Current Trip Card */}
             {currentTrip && (
-              <MobileCard>
+              <MobileCard hover>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                     <Car className="w-6 h-6 text-blue-600 mr-2" />
@@ -373,7 +385,8 @@ function DriverDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <MobileButton
                     onClick={() => setShowNavigationScreen(true)}
-                    icon={Navigation}
+                    icon={MapPin}
+                    size="md"
                     className="flex-1"
                   >
                     Navigate
@@ -383,6 +396,7 @@ function DriverDashboard() {
                       setSelectedTripForChat(currentTrip);
                       setShowChatSystem(true);
                     }}
+                    size="md"
                     variant="secondary"
                     icon={MessageCircle}
                     className="flex-1"
@@ -395,7 +409,7 @@ function DriverDashboard() {
 
             {/* No Active Trip */}
             {!currentTrip && (
-              <MobileCard className="text-center py-8">
+              <MobileCard className="text-center py-8" hover>
                 <Car className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Trip</h3>
                 <p className="text-gray-600 mb-4">You don't have any active trips at the moment.</p>
@@ -406,7 +420,7 @@ function DriverDashboard() {
             )}
 
             {/* Today's Schedule */}
-            <MobileCard>
+            <MobileCard hover>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Schedule</h3>
               <div className="space-y-3">
                 {todayTrips.length > 0 ? (
@@ -427,6 +441,7 @@ function DriverDashboard() {
                       {trip.status === 'Scheduled' && (
                         <MobileButton
                           onClick={() => handleStartTrip(trip._id)}
+                          variant="success"
                           size="md"
                           icon={Play}
                           className="w-full"
@@ -452,7 +467,7 @@ function DriverDashboard() {
           <div className="space-y-6">
             {currentTrip ? (
               <>
-                {/* Trip Header */}
+                {/* Current Trip Header */}
                 <MobileCard>
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-bold text-gray-900">{currentTrip.tripName}</h2>
@@ -484,6 +499,7 @@ function DriverDashboard() {
                 <MobileButton
                   onClick={() => setShowNavigationScreen(true)}
                   size="xl"
+                  variant="success"
                   icon={MapPin}
                   className="w-full"
                 >
@@ -491,7 +507,7 @@ function DriverDashboard() {
                 </MobileButton>
 
                 {/* Employee List */}
-                <MobileCard>
+                <MobileCard hover>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Passengers ({currentTrip.employees.length})</h3>
                   <div className="space-y-3">
                     {currentTrip.employees.map((emp, index) => (
@@ -511,7 +527,7 @@ function DriverDashboard() {
                               size="sm"
                               variant="success"
                               icon={Phone}
-                            >
+                            >s
                               Call
                             </MobileButton>
                             <MobileButton
@@ -530,10 +546,10 @@ function DriverDashboard() {
                         
                         <div className="grid grid-cols-1 gap-2 text-sm">
                           <div className="bg-green-50 border border-green-200 p-2 rounded-lg">
-                            <p className="text-green-800 font-medium">Pickup: {emp.pickupLocation?.address}</p>
+                            <p className="text-green-800 font-medium text-xs">Pickup: {emp.pickupLocation?.address}</p>
                           </div>
                           <div className="bg-red-50 border border-red-200 p-2 rounded-lg">
-                            <p className="text-red-800 font-medium">Drop: {emp.dropLocation?.address}</p>
+                            <p className="text-red-800 font-medium text-xs">Drop: {emp.dropLocation?.address}</p>
                           </div>
                         </div>
                       </div>
@@ -543,7 +559,7 @@ function DriverDashboard() {
               </>
             ) : (
               <MobileCard className="text-center py-8">
-                <Car className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Trip</h3>
                 <p className="text-gray-600">You don't have any active trips at the moment.</p>
               </MobileCard>
@@ -559,6 +575,7 @@ function DriverDashboard() {
               <MobileButton
                 onClick={() => {
                   // Export driver trips
+                  setShowLoading(true);
                   const driverTrips = trips.map(trip => ({
                     tripName: trip.tripName,
                     date: new Date(trip.scheduledDate).toLocaleDateString(),
@@ -577,6 +594,7 @@ function DriverDashboard() {
                   linkElement.click();
                   
                   toast.success('Trip history exported successfully');
+                  setShowLoading(false);
                 }}
                 size="md"
                 icon={Download}
@@ -588,7 +606,7 @@ function DriverDashboard() {
             <div className="space-y-4">
               {trips.length > 0 ? (
                 trips.map((trip) => (
-                  <MobileCard key={trip._id}>
+                  <MobileCard key={trip._id} hover>
                     <div className="flex items-center justify-between mb-3">
                       <h4 className="font-semibold text-lg text-gray-900">{trip.tripName}</h4>
                       <div className="flex items-center space-x-2">
@@ -601,7 +619,7 @@ function DriverDashboard() {
                         </span>
                         {trip.status === 'Completed' && (
                           <div className="flex items-center">
-                            <Star className="w-4 h-4 text-yellow-500" />
+                            <Star className="w-4 h-4 text-blue-500" />
                             <span className="text-sm text-gray-600 ml-1">4.8</span>
                           </div>
                         )}
@@ -630,6 +648,7 @@ function DriverDashboard() {
                     {trip.status === 'Completed' && (
                       <MobileButton
                         onClick={() => {
+                          setShowLoading(true);
                           setSelectedTripForReport(trip);
                           setShowReportModal(true);
                         }}
@@ -645,7 +664,7 @@ function DriverDashboard() {
                 ))
               ) : (
                 <MobileCard className="text-center py-8">
-                  <Route className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                  <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600">No trips found</p>
                 </MobileCard>
               )}
@@ -656,7 +675,7 @@ function DriverDashboard() {
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div className="space-y-6">
-            <MobileCard>
+            <MobileCard hover>
               <div className="text-center mb-6">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <User className="w-10 h-10 text-blue-600" />
@@ -664,7 +683,7 @@ function DriverDashboard() {
                 <h3 className="text-xl font-semibold text-gray-900">{user.name}</h3>
                 <p className="text-gray-600">{user.email}</p>
                 <div className="flex items-center justify-center mt-2">
-                  <Star className="w-4 h-4 text-yellow-500" />
+                  <Star className="w-4 h-4 text-blue-500" />
                   <span className="text-sm text-gray-600 ml-1">4.8 Rating</span>
                 </div>
               </div>
@@ -682,16 +701,16 @@ function DriverDashboard() {
                   <p className="text-2xl font-bold text-blue-600">{stats.totalDistance.toFixed(1)}</p>
                   <p className="text-sm text-blue-800">Total KM</p>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl">
-                  <p className="text-2xl font-bold text-blue-600">98%</p>
-                  <p className="text-sm text-blue-800">On Time</p>
+                <div className="bg-green-50 border border-green-200 p-4 rounded-xl">
+                  <p className="text-2xl font-bold text-green-600">98%</p>
+                  <p className="text-sm text-green-800">On Time</p>
                 </div>
               </div>
             </MobileCard>
 
             {/* Vehicle Information */}
             {vehicle && (
-              <MobileCard>
+              <MobileCard hover>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Assigned Vehicle</h3>
                 <div className="flex items-center space-x-4">
                   <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center">
@@ -703,7 +722,7 @@ function DriverDashboard() {
                     <p className="text-sm text-gray-500">{vehicle.capacity} seats</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
-                    vehicle.status === 'active' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-yellow-50 text-yellow-800 border-yellow-200'
+                    vehicle.status === 'active' ? 'bg-green-50 text-green-800 border-green-200' : 'bg-blue-50 text-blue-800 border-blue-200'
                   }`}>
                     {vehicle.status.toUpperCase()}
                   </span>
@@ -712,7 +731,7 @@ function DriverDashboard() {
             )}
 
             {/* Settings */}
-            <MobileCard>
+            <MobileCard hover>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Settings</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between py-3 border-b border-gray-200">
@@ -747,7 +766,7 @@ function DriverDashboard() {
       />
 
       {/* Trip Report Modal */}
-      {showReportModal && selectedTripForReport && (
+      <Modal isOpen={showReportModal} onClose={() => setShowReportModal(false)} title="Generate Trip Report">
         <TripReportGenerator
           trip={selectedTripForReport}
           onClose={() => {
@@ -755,7 +774,7 @@ function DriverDashboard() {
             setSelectedTripForReport(null);
           }}
         />
-      )}
+      </Modal>
     </div>
   );
 }

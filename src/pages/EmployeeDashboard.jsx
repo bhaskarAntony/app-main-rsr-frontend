@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LoadingScreen from '../components/LoadingScreen';
 import MobileHeader from '../components/MobileHeader';
 import BottomNavigation from '../components/BottomNavigation';
 import MobileCard from '../components/MobileCard';
@@ -34,6 +35,7 @@ function EmployeeDashboard() {
   const [showNavigationScreen, setShowNavigationScreen] = useState(false);
   const [showChatSystem, setShowChatSystem] = useState(false);
   const [selectedTripForChat, setSelectedTripForChat] = useState(null);
+  const [showLoading, setShowLoading] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -135,6 +137,10 @@ function EmployeeDashboard() {
     );
   }
 
+  if (showLoading) {
+    return <LoadingScreen message="Loading your trip details..." />;
+  }
+
   if (showNavigationScreen && currentTrip) {
     return (
       <NavigationScreen
@@ -168,7 +174,7 @@ function EmployeeDashboard() {
           <div className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-2 gap-4">
-              <MobileCard className="text-center">
+              <MobileCard className="text-center" hover>
                 <Route className="w-8 h-8 text-blue-600 mx-auto mb-2" />
                 <p className="text-2xl font-bold text-gray-900">{stats.totalTrips}</p>
                 <p className="text-sm text-gray-600">Total Trips</p>
@@ -195,7 +201,7 @@ function EmployeeDashboard() {
 
             {/* Current Trip Card */}
             {currentTrip && (
-              <MobileCard>
+              <MobileCard hover>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                     <MapPin className="w-6 h-6 text-green-600 mr-2" />
@@ -234,11 +240,11 @@ function EmployeeDashboard() {
                       <div className="grid grid-cols-1 gap-3 mb-4">
                         <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
                           <p className="text-green-800 font-medium text-sm mb-1">Your Pickup</p>
-                          <p className="text-green-700 text-sm">{empDetails.pickupLocation?.address}</p>
+                          <p className="text-green-700 text-xs">{empDetails.pickupLocation?.address}</p>
                         </div>
                         <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
                           <p className="text-red-800 font-medium text-sm mb-1">Your Drop</p>
-                          <p className="text-red-700 text-sm">{empDetails.dropLocation?.address}</p>
+                          <p className="text-red-700 text-xs">{empDetails.dropLocation?.address}</p>
                         </div>
                       </div>
                     );
@@ -248,6 +254,7 @@ function EmployeeDashboard() {
                 <div className="grid grid-cols-2 gap-3">
                   <MobileButton
                     onClick={() => setShowNavigationScreen(true)}
+                    variant="success"
                     icon={Navigation}
                     className="flex-1"
                   >
@@ -259,6 +266,7 @@ function EmployeeDashboard() {
                       setSelectedTripForChat(currentTrip);
                       setShowChatSystem(true);
                     }}
+                    size="md"
                     variant="secondary"
                     icon={MessageCircle}
                     className="flex-1"
@@ -271,7 +279,7 @@ function EmployeeDashboard() {
 
             {/* No Current Trip */}
             {!currentTrip && (
-              <MobileCard className="text-center py-8">
+              <MobileCard className="text-center py-8" hover>
                 <Car className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Trip</h3>
                 <p className="text-gray-600 mb-4">You don't have any active trips at the moment.</p>
@@ -282,7 +290,7 @@ function EmployeeDashboard() {
             )}
 
             {/* Today's Trips */}
-            <MobileCard>
+            <MobileCard hover>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Today's Trips</h3>
               <div className="space-y-3">
                 {todayTrips.length > 0 ? (
@@ -304,7 +312,7 @@ function EmployeeDashboard() {
                 ) : (
                   <div className="text-center py-8">
                     <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">No trips scheduled for today</p>
+                    <p className="text-gray-600">No trips scheduled for today</p>
                   </div>
                 )}
               </div>
@@ -317,7 +325,7 @@ function EmployeeDashboard() {
           <div className="space-y-6">
             {currentTrip ? (
               <>
-                {/* Trip Header */}
+                {/* Current Trip Header */}
                 <MobileCard>
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="text-xl font-bold text-gray-900">{currentTrip.tripName}</h2>
@@ -349,6 +357,7 @@ function EmployeeDashboard() {
                 <MobileButton
                   onClick={() => setShowNavigationScreen(true)}
                   size="xl"
+                  variant="success"
                   icon={MapPin}
                   className="w-full"
                 >
@@ -356,7 +365,7 @@ function EmployeeDashboard() {
                 </MobileButton>
 
                 {/* Driver Information */}
-                <MobileCard>
+                <MobileCard hover>
                   <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <User className="w-5 h-5 mr-2 text-blue-600" />
                     Driver Information
@@ -373,7 +382,7 @@ function EmployeeDashboard() {
                           {currentTrip.driverId?.email}
                         </p>
                         <div className="flex items-center mt-1">
-                          <Star className="w-4 h-4 text-yellow-500" />
+                          <Star className="w-4 h-4 text-blue-500" />
                           <span className="text-sm text-gray-600 ml-1">4.8 Rating</span>
                         </div>
                       </div>
@@ -427,7 +436,7 @@ function EmployeeDashboard() {
                 {(() => {
                   const empDetails = getEmployeeDetails(currentTrip);
                   return empDetails && (
-                    <MobileCard>
+                    <MobileCard hover>
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Trip Details</h3>
                       <div className="grid grid-cols-1 gap-4">
                         <div className="bg-green-50 border border-green-200 p-4 rounded-xl">
@@ -435,7 +444,7 @@ function EmployeeDashboard() {
                             <MapPin className="w-5 h-5 mr-2" />
                             Pickup Location
                           </h4>
-                          <p className="text-green-700">{empDetails.pickupLocation?.address}</p>
+                          <p className="text-green-700 text-sm">{empDetails.pickupLocation?.address}</p>
                           {empDetails.pickupTime && (
                             <p className="text-sm text-green-600 mt-2">
                               Picked up at: {new Date(empDetails.pickupTime).toLocaleString()}
@@ -448,7 +457,7 @@ function EmployeeDashboard() {
                             <MapPin className="w-5 h-5 mr-2" />
                             Drop Location
                           </h4>
-                          <p className="text-red-700">{empDetails.dropLocation?.address}</p>
+                          <p className="text-red-700 text-sm">{empDetails.dropLocation?.address}</p>
                           {empDetails.dropTime && (
                             <p className="text-sm text-red-600 mt-2">
                               Dropped at: {new Date(empDetails.dropTime).toLocaleString()}
@@ -472,7 +481,7 @@ function EmployeeDashboard() {
               </>
             ) : (
               <MobileCard className="text-center py-8">
-                <Car className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Trip</h3>
                 <p className="text-gray-600">You don't have any active trips at the moment.</p>
               </MobileCard>
@@ -492,7 +501,7 @@ function EmployeeDashboard() {
                 trips.map((trip) => {
                   const empDetails = getEmployeeDetails(trip);
                   return (
-                    <MobileCard key={trip._id}>
+                    <MobileCard key={trip._id} hover>
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-semibold text-lg text-gray-900">{trip.tripName}</h4>
                         <div className="flex items-center space-x-2">
@@ -506,7 +515,7 @@ function EmployeeDashboard() {
                           </span>
                           {trip.status === 'Completed' && (
                             <div className="flex items-center">
-                              <Star className="w-4 h-4 text-yellow-500" />
+                              <Star className="w-4 h-4 text-blue-500" />
                               <span className="text-sm text-gray-600 ml-1">4.8</span>
                             </div>
                           )}
@@ -535,10 +544,10 @@ function EmployeeDashboard() {
                       {empDetails && (
                         <div className="grid grid-cols-1 gap-3">
                           <div className="bg-green-50 border border-green-200 p-3 rounded-lg">
-                            <p className="text-green-800 font-medium text-sm">Pickup: {empDetails.pickupLocation?.address}</p>
+                            <p className="text-green-800 font-medium text-xs">Pickup: {empDetails.pickupLocation?.address}</p>
                           </div>
                           <div className="bg-red-50 border border-red-200 p-3 rounded-lg">
-                            <p className="text-red-800 font-medium text-sm">Drop: {empDetails.dropLocation?.address}</p>
+                            <p className="text-red-800 font-medium text-xs">Drop: {empDetails.dropLocation?.address}</p>
                           </div>
                         </div>
                       )}
@@ -548,7 +557,7 @@ function EmployeeDashboard() {
               ) : (
                 <MobileCard className="text-center py-8">
                   <Route className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No trips found</p>
+                  <p className="text-gray-600">No trip history available</p>
                 </MobileCard>
               )}
             </div>
@@ -558,7 +567,7 @@ function EmployeeDashboard() {
         {/* Profile Tab */}
         {activeTab === 'profile' && (
           <div className="space-y-6">
-            <MobileCard>
+            <MobileCard hover>
               <div className="text-center mb-6">
                 <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <User className="w-10 h-10 text-blue-600" />
@@ -581,15 +590,15 @@ function EmployeeDashboard() {
                   <p className="text-2xl font-bold text-blue-600">{stats.todayTrips}</p>
                   <p className="text-sm text-blue-800">Today</p>
                 </div>
-                <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl">
-                  <p className="text-2xl font-bold text-blue-600">{stats.upcomingTrips}</p>
-                  <p className="text-sm text-blue-800">Upcoming</p>
+                <div className="bg-green-50 border border-green-200 p-4 rounded-xl">
+                  <p className="text-2xl font-bold text-green-600">{stats.upcomingTrips}</p>
+                  <p className="text-sm text-green-800">Upcoming</p>
                 </div>
               </div>
             </MobileCard>
 
             {/* Preferences */}
-            <MobileCard>
+            <MobileCard hover>
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Preferences</h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between py-3 border-b border-gray-200">
